@@ -1,5 +1,7 @@
 ;; Define the contract owner
 (define-data-var contract-owner principal tx-sender)
+
+;; Define variables for content authorised and content invalid.
 (define-constant ERR_NOT_AUTHORIZED (err u100))
 (define-constant ERR_ALREADY_REFERRED (err u101))
 (define-constant ERR_INVALID_CONTENT (err u101))
@@ -389,8 +391,6 @@ error (err u105)  ;; New error code for pricing calculation failure
     )
 )
 
-;; Read-only Functions
-
 ;; Get content details
 (define-read-only (get-content (content-id uint))
     (map-get? contents { content-id: content-id })
@@ -413,3 +413,217 @@ error (err u105)  ;; New error code for pricing calculation failure
 (define-read-only (get-total-contents)
     (var-get next-content-id)
 )
+
+
+(define-map subscriptions
+  ((user principal) (subscription-id uint))
+  ((active? bool) (expiry uint)))
+
+(define-public (subscribe (subscription-id uint) (duration uint))
+  (let ((user (contract-caller)))
+    ;; Check if the user already has an active subscription
+    (if (is-none (map-get? subscriptions (list user subscription-id)))
+      (begin
+        ;; Create a new subscription
+        (map-set subscriptions (list user subscription-id)
+          { active? true
+            expiry (+ (block-height) duration) }) 
+        (ok "Subscription created"))
+      (err "User already has an active subscription"))))
+
+(define-public (unsubscribe (subscription-id uint))
+  (let ((user (contract-caller)))
+    ;; Check if the user has an active subscription
+    (match (map-get? subscriptions (list user subscription-id))
+      ((some { active? true expiry })
+        ;; Deactivate the subscription
+        (map-set subscriptions (list user subscription-id)
+          { active? false
+            expiry expiry })
+        (ok "Subscription cancelled"))
+      (_ (err "No active subscription found")))))
+
+(define-public (check-subscription-status (subscription-id uint))
+  (let ((user (contract-caller)))
+    ;; Retrieve the user's subscription status
+    (match (map-get? subscriptions (list user subscription-id))
+      ((some { active? active? expiry })
+        ;; Check if the subscription is still valid
+        (if active?
+          (if (> expiry (block-height))
+            (ok "Subscription is active")
+            ;; If expired, deactivate it
+            (begin
+              ;; Deactivate the expired subscription
+              (map-set subscriptions (list user subscription-id)
+                { active? false
+                  expiry expiry })
+              (ok "Subscription has expired")))
+          (ok "Subscription is inactive")))
+      (_ (err "No subscription found")))))
+
+(define-public (get-subscription-details (subscription-id uint))
+  ;; Retrieve details of a user's subscription
+  ;; Returns: { user: principal, active: bool, expiry: uint }
+  (let ((user (contract-caller)))
+    (match (map-get? subscriptions (list user subscription-id))
+      ((some { active? active? expiry })
+        ;; Return the details of the subscription
+        { user: user
+          active: active?
+          expiry: expiry })
+      (_ 
+        ;; If no details found, return an error message
+        { user: user 
+          active: false 
+          expiry: 0 }))))
+
+(define-fungible-token fanToken)
+
+(define-map token-gated-access
+  ((user principal) (access-id uint))
+  (active? bool))
+
+(define-public (grant-access (access-id uint) (amount uint))
+  (let ((user (contract-caller)))
+    ;; Check if the user has enough tokens
+    (if (>= (ft-get-balance fanToken user) amount)
+      (begin
+        ;; Grant access if the user has enough tokens
+        (map-set token-gated-access (list user access-id) { active? true })
+        (ok "Access granted"))
+      (err "Insufficient tokens"))))
+
+(define-public (revoke-access (access-id uint))
+  (let ((user (contract-caller)))
+    ;; Revoke access for the user
+    (map-set token-gated-access (list user access-id) { active? false })
+    (ok "Access revoked")))
+
+(define-public (check-access (access-id uint))
+  (let ((user (contract-caller)))
+    ;; Check if the user has access
+    (match (map-get? token-gated-access (list user access-id))
+      ((some { active? active? })
+        (if active?
+          (ok "Access is active")
+          (ok "Access is inactive")))
+      (_ 
+        (err "No access record found")))))
+
+(define-public (get-access-status (access-id uint))
+  ;; Retrieve the access status of a user for a specific access ID
+  ;; Returns: { user: principal, active: bool }
+  (let ((user (contract-caller)))
+    (match (map-get? token-gated-access (list user access-id))
+      ((some { active? active? })
+        { user: user
+          active: active? })
+      (_ 
+        { user: user 
+          active: false }))))
+
+          (define-map video-analytics
+  ((video-id uint) (user principal))
+  ((views uint) (likes uint) (dislikes uint)))
+
+(define-map user-feedback
+  ((video-id uint) (user principal))
+  (feedback string))
+
+(define-public (track-view (video-id uint))
+  (let ((user (contract-caller)))
+    ;; Increment view count for the video
+    (match (map-get? video-analytics (list video-id user))
+      ((some { views views likes likes dislikes dislikes })
+        ;; Update existing record
+        (map-set video-analytics (list video-id user)
+          { views (+ views 1)
+            likes likes
+            dislikes dislikes })
+        (ok "View tracked"))
+      (_ 
+        ;; Create new record if none exists
+        (map-set video-analytics (list video-id user)
+          { views 1
+            likes 0
+            dislikes 0 })
+        (ok "View tracked")))))
+
+(define-public (submit-feedback (video-id uint) (feedback string))
+  (let ((user (contract-caller)))
+    ;; Store user feedback for the specific video
+    (map-set user-feedback (list video-id user) feedback)
+    (ok "Feedback submitted")))
+
+(define-public (get-video-analytics (video-id uint))
+  ;; Retrieve analytics for a specific video
+  ;; Returns: { views: uint, likes: uint, dislikes: uint }
+  (let ((user (contract-caller)))
+    (match (map-get? video-analytics (list video-id user))
+      ((some { views views likes likes dislikes dislikes })
+        { views: views
+          likes: likes
+          dislikes: dislikes })
+      (_ 
+        { views: 0 
+          likes: 0 
+          dislikes: 0 }))))
+
+(define-public (get-user-feedback (video-id uint))
+  ;; Retrieve feedback from a specific user for a specific video
+  ;; Returns: { feedback: string }
+  (let ((user (contract-caller)))
+    (match (map-get? user-feedback (list video-id user))
+      ((some feedback)
+        { feedback: feedback })
+      (_ 
+        { feedback: "No feedback found" }))))
+
+
+        (define-map reports
+  ((video-id uint) (user principal))
+  ((reason string) (status uint)))
+
+(define-constant STATUS_PENDING 0)
+(define-constant STATUS_REVIEWED 1)
+(define-constant STATUS_RESOLVED 2)
+
+(define-public (report-content (video-id uint) (reason string))
+  (let ((user (contract-caller)))
+    ;; Check if the user has already reported this video
+    (if (is-none (map-get? reports (list video-id user)))
+      (begin
+        ;; Create a new report
+        (map-set reports (list video-id user)
+          { reason: reason
+            status: STATUS_PENDING })
+        (ok "Report submitted"))
+      (err "You have already reported this content"))))
+
+(define-public (review-report (video-id uint) (user principal) (status uint))
+  ;; Only moderators should be able to review reports
+  ;; For simplicity, assume the moderator's address is hardcoded
+  (let ((moderator <MODERATOR_ADDRESS>)) 
+    (if (= (contract-caller) moderator)
+      (match (map-get? reports (list video-id user))
+        ((some { reason: reason status: current-status })
+          ;; Update the status of the report
+          (map-set reports (list video-id user)
+            { reason: reason
+              status: status })
+          (ok "Report status updated"))
+        (_ 
+          (err "No report found for this video")))
+      (err "Only moderators can review reports"))))
+
+(define-public (get-report-status (video-id uint) (user principal))
+  ;; Retrieve the status of a report by a specific user for a specific video
+  ;; Returns: { reason: string, status: uint }
+  (match (map-get? reports (list video-id user))
+    ((some { reason: reason status: status })
+      { reason: reason 
+        status: status })
+    (_ 
+      { reason: "No report found" 
+        status: STATUS_PENDING })))
