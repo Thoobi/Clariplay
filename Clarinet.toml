@@ -5,8 +5,48 @@ authors = []
 telemetry = true
 cache_dir = '.\.cache'
 requirements = []
+[contracts.access_control]
+path = 'contracts/access_control.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.admin_control]
+path = 'contracts/admin_control.clar'
+clarity_version = 2
+epoch = 2.5
+
 [contracts.clari]
 path = 'contracts/clari.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.content_management]
+path = 'contracts/content_management.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.owner_management]
+path = 'contracts/owner_management.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.referral_system]
+path = 'contracts/referral_system.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.sub_manager]
+path = 'contracts/sub_manager.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.token_gated]
+path = 'contracts/token_gated.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.video_player]
+path = 'contracts/video_player.clar'
 clarity_version = 2
 epoch = 2.5
 [repl.analysis]

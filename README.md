@@ -30,6 +30,15 @@ This smart contract implements a tiered video access platform on the Stacks bloc
    - Contract owner can add new video metadata
    - Only the contract owner can record video views
 
+7. **Subscription Management**
+   -Users can subscribe to and manage subscriptions with content creators.
+   - **Token Gating**: Access specific functionalities based on token ownership.
+   - **Dynamic Pricing**: Flexible pricing strategies for video content.
+   - **Referral System**: Incentivizes users to refer others to the platform.
+   - **Analytics Tracking**: Collects data on user interactions with videos.
+   - **User Feedback System**: Allows users to provide feedback on videos.
+   - **Content Moderation**: Users can report inappropriate content; moderators can manage reports.
+
 ## Core Functions
 
 - `purchase-access`: Allows users to buy a subscription
